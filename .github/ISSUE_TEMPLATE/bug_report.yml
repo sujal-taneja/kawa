@@ -1,0 +1,32 @@
+name: Bug report
+description: Something in Kawa doesn't work as documented
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Requests, payloads or commands that trigger the problem.
+      placeholder: |
+        1. POST /api/v1/queues/demo/jobs ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Kawa version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: text
