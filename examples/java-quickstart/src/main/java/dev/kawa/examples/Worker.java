@@ -5,13 +5,16 @@ import dev.kawa.client.KawaWorker;
 
 import java.time.Duration;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
+import java.time.format.DateTimeFormatter;
 
 /**
  * The worker side: runs for every thumbnail job until stopped with Ctrl+C. Start several, each with a
  * different name, and they share the queue without ever getting the same job.
  */
 public class Worker {
+
+    // LocalTime.toString() drops ":00" seconds, which would print 02:31 instead of 02:31:00
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public static void main(String[] args) {
         // one line per log record, without stack traces, so the output stays readable
@@ -41,6 +44,6 @@ public class Worker {
     }
 
     private static void log(String worker, String message) {
-        System.out.println(LocalTime.now().truncatedTo(ChronoUnit.SECONDS) + " [" + worker + "] " + message);
+        System.out.println(LocalTime.now().format(TIME) + " [" + worker + "] " + message);
     }
 }

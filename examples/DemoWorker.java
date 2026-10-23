@@ -3,7 +3,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 public class DemoWorker {
 
     private static final int LEASE_SECONDS = 10;
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final Pattern ID = Pattern.compile("\"id\":\"([0-9a-f-]{36})\"");
     private static final Pattern TOKEN = Pattern.compile("\"leaseToken\":\"([0-9a-f-]{36})\"");
     private static final Pattern ATTEMPTS = Pattern.compile("\"attempts\":(\\d+)");
@@ -90,6 +91,6 @@ public class DemoWorker {
     }
 
     private void log(String format, Object... args) {
-        System.out.printf("%s [%s] %s%n", LocalTime.now().truncatedTo(ChronoUnit.SECONDS), name, String.format(format, args));
+        System.out.printf("%s [%s] %s%n", LocalTime.now().format(TIME), name, String.format(format, args));
     }
 }
