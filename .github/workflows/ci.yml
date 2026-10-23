@@ -28,3 +28,13 @@ jobs:
       # Testcontainers uses the Docker engine that ships with the runner
       - name: Build and test
         run: ./mvnw -B verify
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # catches a broken Dockerfile before anyone's `docker compose up` does
+      - name: Build the Docker image
+        run: docker build -f kawa-server/Dockerfile -t kawa:ci .
