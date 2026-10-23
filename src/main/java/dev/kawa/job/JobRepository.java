@@ -6,6 +6,8 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,26 +21,32 @@ public class JobRepository {
     }
 
     public UUID enqueue(String queue, String payloadJson, int maxAttempts) {
-        return enqueue(queue, payloadJson, maxAttempts, null).jobId();
+        return enqueue(NewJob.now(queue, payloadJson, maxAttempts)).jobId();
     }
 
     /**
      * Check-then-insert would race (two retries both see "not found"), so the unique index decides:
      * the loser's INSERT does nothing and returns no row, and we look up the winner instead.
      * The hash is taken from the jsonb form, so key order and whitespace don't matter.
+     * available_at uses the database clock, the same one take() compares against; a past runAt means "now".
      */
-    public EnqueueResult enqueue(String queue, String payloadJson, int maxAttempts, String idempotencyKey) {
+    public EnqueueResult enqueue(NewJob job) {
+        OffsetDateTime runAt = job.runAt() == null ? null : job.runAt().atOffset(ZoneOffset.UTC);
         Optional<UUID> inserted = jdbcClient.sql("""
-                        INSERT INTO jobs (queue, payload, max_attempts, idempotency_key, payload_hash)
+                        INSERT INTO jobs (queue, payload, max_attempts, idempotency_key, payload_hash, available_at)
                         VALUES (:queue, CAST(:payload AS jsonb), :maxAttempts, :key,
-                                sha256(convert_to(CAST(CAST(:payload AS jsonb) AS text), 'UTF8')))
+                                sha256(convert_to(CAST(CAST(:payload AS jsonb) AS text), 'UTF8')),
+                                GREATEST(now(), COALESCE(CAST(:runAt AS timestamptz),
+                                                         now() + :delaySeconds * INTERVAL '1 second')))
                         ON CONFLICT (queue, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
                         RETURNING id
                         """)
-                .param("queue", queue)
-                .param("payload", payloadJson)
-                .param("maxAttempts", maxAttempts)
-                .param("key", idempotencyKey)
+                .param("queue", job.queue())
+                .param("payload", job.payloadJson())
+                .param("maxAttempts", job.maxAttempts())
+                .param("key", job.idempotencyKey())
+                .param("runAt", runAt)
+                .param("delaySeconds", job.delaySeconds())
                 .query((rs, rowNum) -> (UUID) rs.getObject("id"))
                 .optional();
         if (inserted.isPresent()) {
@@ -51,9 +59,9 @@ public class JobRepository {
                         FROM jobs
                         WHERE queue = :queue AND idempotency_key = :key
                         """)
-                .param("queue", queue)
-                .param("payload", payloadJson)
-                .param("key", idempotencyKey)
+                .param("queue", job.queue())
+                .param("payload", job.payloadJson())
+                .param("key", job.idempotencyKey())
                 .query((rs, rowNum) -> new EnqueueResult((UUID) rs.getObject("id"), false, rs.getBoolean("same_payload")))
                 .single();
     }

@@ -35,7 +35,8 @@ public class JobController {
         if (request.payload() == null || request.payload().isNull()) {
             throw new InvalidJobRequestException("payload is required and must be a JSON value.");
         }
-        EnqueueResult result = service.enqueue(queue, request.payload().toString(), request.maxAttempts(), idempotencyKey);
+        EnqueueResult result = service.enqueue(queue, request.payload().toString(), request.maxAttempts(),
+                idempotencyKey, request.runAt(), request.delaySeconds());
         EnqueueResponse body = new EnqueueResponse(result.jobId());
         if (result.created()) {
             return ResponseEntity.status(HttpStatus.CREATED).body(body);
@@ -74,7 +75,7 @@ public class JobController {
         return JobResponse.from(service.get(id));
     }
 
-    public record EnqueueRequest(JsonNode payload, Integer maxAttempts) {
+    public record EnqueueRequest(JsonNode payload, Integer maxAttempts, Instant runAt, Integer delaySeconds) {
     }
 
     public record EnqueueResponse(UUID id) {
