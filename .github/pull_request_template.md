@@ -15,4 +15,4 @@
 - [ ] `./mvnw verify` passes locally
 - [ ] Tests cover the change (including failure and concurrency cases where relevant)
 - [ ] Database migrations are additive and backward compatible
-- [ ] Docs, README or ADRs updated if behaviour or design changed
+- [ ] README or `docs/` updated if behaviour changed
