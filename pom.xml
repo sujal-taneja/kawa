@@ -23,6 +23,7 @@
   </properties>
 
   <modules>
+    <module>kawa-client</module>
     <module>kawa-server</module>
   </modules>
 </project>

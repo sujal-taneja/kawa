@@ -38,6 +38,12 @@
     </dependency>
 
     <dependency>
+      <groupId>dev.kawa</groupId>
+      <artifactId>kawa-client</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc-test</artifactId>
       <scope>test</scope>

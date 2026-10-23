@@ -136,6 +136,44 @@ curl -X POST localhost:8080/api/v1/queues/emails/jobs \
 
 </details>
 
+## Java client
+
+[`kawa-client`](kawa-client) wraps the API in a small Java library (Java 17+, no Spring; its only dependency is Jackson). Until it is published, install it into your local Maven repository with `./mvnw install -pl kawa-client`, then add:
+
+```xml
+<dependency>
+  <groupId>dev.kawa</groupId>
+  <artifactId>kawa-client</artifactId>
+  <version>0.2.0-SNAPSHOT</version>
+</dependency>
+```
+
+```java
+KawaClient kawa = KawaClient.create("http://localhost:8080");   // one per app; thread-safe
+
+// producer: any object Jackson can serialize becomes the payload
+UUID id = kawa.enqueue("emails", new WelcomeEmail("ada@example.com"));
+kawa.enqueue("emails", new PasswordReset("ada"), EnqueueOptions.builder()
+        .priority(9)
+        .delay(Duration.ofMinutes(10))
+        .idempotencyKey("reset-ada-42")
+        .build());
+
+// worker
+kawa.take("emails", Duration.ofSeconds(30)).ifPresent(job -> {
+    try {
+        send(job.payload(WelcomeEmail.class));
+        kawa.ack(job);
+    } catch (LeaseLostException e) {
+        // the lease expired and another worker has the job now: drop it
+    } catch (Exception e) {
+        kawa.nack(job, Duration.ofSeconds(10));
+    }
+});
+```
+
+The lease token stays inside the `LeasedJob`, so workers never handle it. Errors arrive as typed, unchecked exceptions carrying the server's explanation: `LeaseLostException` (409), `JobNotFoundException` (404), `IdempotencyKeyReusedException` (422), `KawaRequestException` (other 4xx/5xx) and `KawaConnectionException` (network failures).
+
 ## Crash-recovery demo
 
 [`examples/DemoWorker.java`](examples/DemoWorker.java) is a dependency-free worker: it takes a job, works on it for a few seconds, then acks it (payloads with `"fail": true` are nacked). Java runs it straight from source.
