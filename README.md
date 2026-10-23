@@ -67,7 +67,7 @@ Requires **Java 21** and **Docker** (Docker Desktop, Colima, or any other engine
 
 ```bash
 docker compose up -d     # PostgreSQL 16 on localhost:5432
-./mvnw spring-boot:run   # Kawa on localhost:8080; the schema is created on startup
+./mvnw -pl kawa-server spring-boot:run   # Kawa on localhost:8080; the schema is created on startup
 ```
 
 Enqueue a job, claim it, and acknowledge it:
@@ -180,7 +180,7 @@ export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock   # add to you
 
 ## Configuration
 
-Settings live in [`application.yml`](src/main/resources/application.yml) and can be overridden with environment variables or command-line flags.
+Settings live in [`application.yml`](kawa-server/src/main/resources/application.yml) and can be overridden with environment variables or command-line flags.
 
 | Property | Default | Meaning |
 |---|---|---|
