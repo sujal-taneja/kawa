@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -31,7 +30,7 @@ public class JobController {
     @ResponseStatus(HttpStatus.CREATED)
     public EnqueueResponse enqueue(@PathVariable String queue, @RequestBody EnqueueRequest request) {
         if (request.payload() == null || request.payload().isNull()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payload is required");
+            throw new InvalidJobRequestException("payload is required and must be a JSON value.");
         }
         return new EnqueueResponse(service.enqueue(queue, request.payload().toString(), request.maxAttempts()));
     }

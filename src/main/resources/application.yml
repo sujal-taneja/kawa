@@ -7,6 +7,9 @@ spring:
     password: kawa
   flyway:
     enabled: true
+  mvc:
+    problemdetails:
+      enabled: true
 
 server:
   port: 8080

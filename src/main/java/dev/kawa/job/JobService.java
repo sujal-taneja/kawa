@@ -1,8 +1,6 @@
 package dev.kawa.job;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -24,45 +22,45 @@ public class JobService {
     public UUID enqueue(String queue, String payloadJson, Integer maxAttempts) {
         int attempts = maxAttempts == null ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
         if (attempts < 1) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "maxAttempts must be at least 1");
+            throw new InvalidJobRequestException("maxAttempts must be at least 1 (got " + attempts + ").");
         }
         return repository.enqueue(queue, payloadJson, attempts);
     }
 
     public Optional<Job> take(String queue, Integer leaseSeconds) {
-        return repository.take(queue, durationOr(leaseSeconds, DEFAULT_LEASE));
+        return repository.take(queue, durationOr("leaseSeconds", leaseSeconds, DEFAULT_LEASE));
     }
 
     public void extend(UUID id, UUID leaseToken, Integer leaseSeconds) {
-        requireLeaseHeld(repository.extend(id, leaseToken, durationOr(leaseSeconds, DEFAULT_LEASE)));
+        requireLeaseHeld(id, repository.extend(id, leaseToken, durationOr("seconds", leaseSeconds, DEFAULT_LEASE)));
     }
 
     public void ack(UUID id, UUID leaseToken) {
-        requireLeaseHeld(repository.ack(id, leaseToken));
+        requireLeaseHeld(id, repository.ack(id, leaseToken));
     }
 
     public void nack(UUID id, UUID leaseToken, Integer retryDelaySeconds) {
-        requireLeaseHeld(repository.nack(id, leaseToken, durationOr(retryDelaySeconds, DEFAULT_RETRY_DELAY)));
+        requireLeaseHeld(id, repository.nack(id, leaseToken,
+                durationOr("seconds", retryDelaySeconds, DEFAULT_RETRY_DELAY)));
     }
 
     public Job get(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "job not found"));
+        return repository.findById(id).orElseThrow(() -> new JobNotFoundException(id));
     }
 
-    // false means the token didn't match: the lease expired and was reaped, or the job was already settled
-    private static void requireLeaseHeld(boolean updated) {
+    // a single UPDATE only reports "0 rows", not which of expired / settled / wrong token applied
+    private static void requireLeaseHeld(UUID id, boolean updated) {
         if (!updated) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "lease not held: expired, already settled, or wrong token");
+            throw new LeaseNotHeldException(id);
         }
     }
 
-    private static Duration durationOr(Integer seconds, Duration fallback) {
+    private static Duration durationOr(String field, Integer seconds, Duration fallback) {
         if (seconds == null) {
             return fallback;
         }
         if (seconds < 1) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "durations must be at least 1 second");
+            throw new InvalidJobRequestException(field + " must be at least 1 (got " + seconds + ").");
         }
         return Duration.ofSeconds(seconds);
     }
