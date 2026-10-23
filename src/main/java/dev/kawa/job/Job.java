@@ -11,6 +11,7 @@ public record Job(
         JobStatus status,
         int attempts,
         int maxAttempts,
+        int priority,
         Instant availableAt,
         UUID leaseToken,
         Instant leaseExpiresAt,

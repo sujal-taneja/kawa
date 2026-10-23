@@ -14,6 +14,7 @@ public class JobService {
     static final Duration DEFAULT_LEASE = Duration.ofSeconds(30);
     static final Duration DEFAULT_RETRY_DELAY = Duration.ofSeconds(10);
     static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
+    static final int MAX_PRIORITY = 9;
     // a cap catches unit mistakes (milliseconds sent as seconds) and stops forgotten jobs piling up for decades
     static final Duration MAX_DELAY = Duration.ofDays(365);
 
@@ -23,11 +24,16 @@ public class JobService {
         this.repository = repository;
     }
 
-    public EnqueueResult enqueue(String queue, String payloadJson, Integer maxAttempts, String idempotencyKey,
-                                 Instant runAt, Integer delaySeconds) {
+    public EnqueueResult enqueue(String queue, String payloadJson, Integer maxAttempts, Integer priority,
+                                 String idempotencyKey, Instant runAt, Integer delaySeconds) {
         int attempts = maxAttempts == null ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
         if (attempts < 1) {
             throw new InvalidJobRequestException("maxAttempts must be at least 1 (got " + attempts + ").");
+        }
+        int level = priority == null ? 0 : priority;
+        if (level < 0 || level > MAX_PRIORITY) {
+            throw new InvalidJobRequestException(
+                    "priority must be between 0 and " + MAX_PRIORITY + " (" + MAX_PRIORITY + " = most urgent), got " + level + ".");
         }
         if (idempotencyKey != null && (idempotencyKey.isBlank() || idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH)) {
             throw new InvalidJobRequestException(
@@ -44,8 +50,8 @@ public class JobService {
         if (runAt != null && runAt.isAfter(Instant.now().plus(MAX_DELAY))) {
             throw new InvalidJobRequestException("runAt must be at most 1 year in the future (got " + runAt + ").");
         }
-        EnqueueResult result = repository.enqueue(new NewJob(queue, payloadJson, attempts, idempotencyKey, runAt,
-                delaySeconds == null ? 0 : delaySeconds));
+        EnqueueResult result = repository.enqueue(new NewJob(queue, payloadJson, attempts, level, idempotencyKey,
+                runAt, delaySeconds == null ? 0 : delaySeconds));
         // silently returning the old job here would hide a client bug: one key reused for two different jobs
         if (!result.payloadMatches()) {
             throw new IdempotencyKeyReusedException(idempotencyKey, result.jobId());

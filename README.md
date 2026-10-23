@@ -92,7 +92,7 @@ All endpoints live under `/api/v1` and speak JSON.
 
 | Method | Path | Body | Responses |
 |---|---|---|---|
-| `POST` | `/queues/{queue}/jobs` | `{"payload": {…}, "maxAttempts": 5}`, plus optional `runAt` or `delaySeconds` | `201` with `{"id"}` · `200` on an idempotent replay · `422` |
+| `POST` | `/queues/{queue}/jobs` | `{"payload": {…}, "maxAttempts": 5, "priority": 0}`, plus optional `runAt` or `delaySeconds` | `201` with `{"id"}` · `200` on an idempotent replay · `422` |
 | `POST` | `/queues/{queue}/take?leaseSeconds=30` | – | `200` with the job · `204` if nothing is ready |
 | `POST` | `/jobs/{id}/extend` | `{"leaseToken", "seconds": 30}` | `204` · `409` if the lease is not held |
 | `POST` | `/jobs/{id}/ack` | `{"leaseToken"}` | `204` · `409` |
@@ -100,6 +100,8 @@ All endpoints live under `/api/v1` and speak JSON.
 | `GET` | `/jobs/{id}` | – | `200` with the job · `404` |
 
 Defaults: `maxAttempts` 5, lease 30 s, retry delay 10 s. A queue exists as soon as a job is enqueued to it.
+
+**Priorities.** `"priority"` runs from 0 (default) to 9 (most urgent). `take` hands out the highest-priority ready job first, and the oldest within the same priority, so a password-reset email doesn't wait behind 50,000 weekly digests. A job keeps its priority across retries, and a high-priority job scheduled for later doesn't block lower-priority jobs that are ready now. Priorities are strict: under constant urgent traffic, low-priority jobs wait (starvation). Use separate queues if that matters.
 
 **Delayed jobs.** Add `"delaySeconds": 600` to run a job in 10 minutes, or `"runAt": "2026-12-01T09:00:00Z"` to run it at a given instant (not both). Delays can be up to one year, and a `runAt` in the past means "now". A delayed job simply has a future `availableAt`, which `take` skips until it is due, so there are no timers to lose. The claim index keeps `take` fast however many jobs are scheduled: on a table of one million jobs, 90% of them in the future, the claim query reads exactly one index entry (~0.05 ms, against ~49 ms for a full table scan).
 

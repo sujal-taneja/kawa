@@ -99,7 +99,7 @@ class IdempotentEnqueueTest extends IntegrationTest {
         for (int i = 0; i < callers; i++) {
             results.add(pool.submit(() -> {
                 startTogether.await();
-                return repository.enqueue(new NewJob("emails", "{\"to\":\"a@b.com\"}", 3, "same-key", null, 0));
+                return repository.enqueue(new NewJob("emails", "{\"to\":\"a@b.com\"}", 3, 0, "same-key", null, 0));
             }));
         }
 

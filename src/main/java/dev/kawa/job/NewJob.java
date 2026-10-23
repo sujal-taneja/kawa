@@ -9,12 +9,13 @@ public record NewJob(
         String queue,
         String payloadJson,
         int maxAttempts,
+        int priority,
         String idempotencyKey,
         Instant runAt,
         int delaySeconds
 ) {
 
     public static NewJob now(String queue, String payloadJson, int maxAttempts) {
-        return new NewJob(queue, payloadJson, maxAttempts, null, null, 0);
+        return new NewJob(queue, payloadJson, maxAttempts, 0, null, null, 0);
     }
 }
