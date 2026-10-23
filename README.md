@@ -63,12 +63,15 @@ Every job is a row in a PostgreSQL `jobs` table. Its `status` moves through four
 
 ## Quickstart
 
-Requires **Java 21** and **Docker** (Docker Desktop, Colima, or any other engine).
+Requires only **Docker** (Docker Desktop, Colima, or any other engine).
 
 ```bash
-docker compose up -d     # PostgreSQL 16 on localhost:5432
-./mvnw -pl kawa-server spring-boot:run   # Kawa on localhost:8080; the schema is created on startup
+docker compose up -d     # builds Kawa, starts it with PostgreSQL 16; Kawa on localhost:8080
 ```
+
+The schema is created on startup. Use `KAWA_PORT=9090 docker compose up -d` if port 8080 is taken.
+
+To run Kawa from source instead (needs Java 21): `docker compose up -d postgres`, then `./mvnw -pl kawa-server spring-boot:run`.
 
 Enqueue a job, claim it, and acknowledge it:
 
