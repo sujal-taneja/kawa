@@ -47,7 +47,7 @@ public class DemoWorker {
     void run() throws Exception {
         log("polling queue '%s' at %s", queue, baseUrl);
         while (true) {
-            HttpResponse<String> taken = post("/queues/" + queue + "/take?leaseSeconds=" + LEASE_SECONDS, null);
+            HttpResponse<String> taken = post("/api/v1/queues/" + queue + "/take?leaseSeconds=" + LEASE_SECONDS, null);
             if (taken.statusCode() == 204) {
                 Thread.sleep(1000);
                 continue;
@@ -68,7 +68,7 @@ public class DemoWorker {
 
             String lease = "{\"leaseToken\":\"" + token + "\"}";
             boolean shouldFail = payload.replace(" ", "").contains("\"fail\":true");
-            HttpResponse<String> settled = post("/jobs/" + id + (shouldFail ? "/nack" : "/ack"), lease);
+            HttpResponse<String> settled = post("/api/v1/jobs/" + id + (shouldFail ? "/nack" : "/ack"), lease);
             if (settled.statusCode() == 204) {
                 log("%s %s", shouldFail ? "nacked" : "acked  ", id);
             } else {
