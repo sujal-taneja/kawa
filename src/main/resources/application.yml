@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: kawa
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kawa
+    username: kawa
+    password: kawa
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
+
+kawa:
+  reaper:
+    interval-ms: 5000
