@@ -35,7 +35,14 @@ Priorities are strict: under constant urgent traffic, low-priority jobs wait. Us
 
 ### Idempotent enqueue
 
-Send an `Idempotency-Key` header (1 to 128 characters) to make an enqueue safe to retry:
+Send an `Idempotency-Key` header (1 to 128 characters) to make an enqueue safe to retry.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/idempotency-dark.svg">
+    <img src="images/idempotency-light.svg" alt="The same request with one Idempotency-Key is sent three times; the first creates the job, the retries create nothing and return the same job id" width="100%">
+  </picture>
+</p>
 
 ```bash
 curl -X POST localhost:8080/api/v1/queues/emails/jobs \

@@ -116,11 +116,27 @@ To see it all in action, [`examples/java-quickstart`](examples/java-quickstart) 
   </picture>
 </p>
 
-Every job is a row in one PostgreSQL table, and every change to a job is a single SQL statement:
+Every job is a row in one PostgreSQL table, and every change to a job is a single SQL statement.
 
-- **`take`** locks the best ready job with `FOR UPDATE SKIP LOCKED`, so workers asking at the same moment each get a different job without waiting for one another. The job is leased under a fresh random token.
-- **`ack` and `nack`** only succeed with the current token. A worker whose lease ran out gets `409 Conflict` instead of overwriting someone else's work.
-- **A reaper** puts jobs from crashed workers back on the queue, and marks a job `DEAD` once it is out of attempts.
+**Claiming without collisions.** `take` locks the best ready job with `FOR UPDATE SKIP LOCKED`. Workers asking at the same moment each get a different job, and none of them waits for another.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/claiming-dark.svg">
+    <img src="docs/images/claiming-light.svg" alt="Two workers call take at the same moment: worker A locks job 7, worker B finds job 7 locked, skips it and locks job 8" width="100%">
+  </picture>
+</p>
+
+**Fencing off stale workers.** Every claim gets a fresh random lease token, and only the current token can settle the job. A worker that froze past its lease gets `409 Conflict` instead of overwriting the work of whoever holds the job now.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/fencing-dark.svg">
+    <img src="docs/images/fencing-light.svg" alt="Worker A takes job 7 with token aaa and freezes; the lease expires and the reaper returns the job; worker B takes it with token bbb; worker A's late ack with token aaa is rejected with 409, and worker B's ack marks the job done" width="100%">
+  </picture>
+</p>
+
+**Recovering from crashes.** A reaper puts jobs from crashed workers back on the queue, and marks a job `DEAD` once it is out of attempts.
 
 Delivery is **at-least-once**: a worker that finishes the work but crashes before reporting it causes a second run, so job handlers should be safe to repeat. The [architecture guide](docs/architecture.md) goes deeper.
 

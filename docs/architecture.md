@@ -70,6 +70,13 @@ RETURNING *
 - **`FOR UPDATE`** locks the chosen row until the transaction ends.
 - **`SKIP LOCKED`** makes a second worker pass over locked rows and take the next one, instead of waiting in line. Many workers claim different jobs at the same moment, with no external lock service.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/claiming-dark.svg">
+    <img src="images/claiming-light.svg" alt="Two workers call take at the same moment: worker A locks job 7, worker B finds job 7 locked, skips it and locks job 8" width="100%">
+  </picture>
+</p>
+
 `attempts` grows on every claim, not on every failure. A crash therefore uses up an attempt too, which is what eventually stops a job that crashes every worker.
 
 ## Leases and fencing tokens
@@ -82,6 +89,13 @@ WHERE id = :id AND lease_token = :token AND status = 'LEASED'
 ```
 
 Zero rows updated becomes `409 Conflict`. This protects against a stalled worker: if worker A freezes past its lease and the job is handed to worker B with a new token, A's late ack matches nothing and B stays in charge.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/fencing-dark.svg">
+    <img src="images/fencing-light.svg" alt="Worker A takes job 7 with token aaa and freezes; the lease expires and the reaper returns the job; worker B takes it with token bbb; worker A's late ack with token aaa is rejected with 409, and worker B's ack marks the job done" width="100%">
+  </picture>
+</p>
 
 Expiry is passive. Nothing happens at `lease_expires_at` itself; the job is only returned by the reaper. Until the reaper runs, the original holder can still ack, which is safe because no one else holds the job yet.
 
