@@ -22,7 +22,7 @@ public class JobRepository {
     public UUID enqueue(String queue, String payloadJson, int maxAttempts) {
         return jdbcClient.sql("""
                         INSERT INTO jobs (queue, payload, max_attempts)
-                        VALUES (:queue, :payload::jsonb, :maxAttempts)
+                        VALUES (:queue, CAST(:payload AS jsonb), :maxAttempts)
                         RETURNING id
                         """)
                 .param("queue", queue)
@@ -119,12 +119,14 @@ public class JobRepository {
 
     /**
      * The reaper: a worker that holds a lease past lease_expires_at is presumed dead.
-     * Put the job back to PENDING so another worker can pick it up.
+     * Put the job back to PENDING so another worker can pick it up — unless that was
+     * its last attempt, so a job that crashes every worker can't loop forever.
      */
     public int reapExpiredLeases() {
         return jdbcClient.sql("""
                         UPDATE jobs
-                        SET status = 'PENDING', lease_token = NULL, lease_expires_at = NULL, updated_at = now()
+                        SET status = CASE WHEN attempts >= max_attempts THEN 'DEAD' ELSE 'PENDING' END,
+                            lease_token = NULL, lease_expires_at = NULL, updated_at = now()
                         WHERE status = 'LEASED' AND lease_expires_at < now()
                         """)
                 .update();
