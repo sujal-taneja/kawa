@@ -53,13 +53,13 @@ Every job is a row in a PostgreSQL `jobs` table. Its `status` moves through four
 
 ### Guarantees
 
-| | |
+| Guarantee | What it means |
 |---|---|
-| **No lost jobs** | A job is acknowledged to the producer only after it is committed to PostgreSQL. |
-| **One holder at a time** | At most one worker holds a valid lease on a job. |
-| **No stuck jobs** | Every lease expires, and expired jobs return to the queue. |
-| **Bounded retries** | A job runs at most `maxAttempts` times, crashes included, then becomes dead. |
-| **At-least-once delivery** | A job can run more than once (for example, a worker crashes after finishing but before acking), so handlers should be idempotent. |
+| **No&nbsp;lost&nbsp;jobs** | A job is acknowledged to the producer only after it is committed to PostgreSQL. |
+| **One&nbsp;holder&nbsp;at&nbsp;a&nbsp;time** | At most one worker holds a valid lease on a job. |
+| **No&nbsp;stuck&nbsp;jobs** | Every lease expires, and expired jobs return to the queue. |
+| **Bounded&nbsp;retries** | A job runs at most `maxAttempts` times, crashes included, then becomes dead. |
+| **At&#8209;least&#8209;once&nbsp;delivery** | A job can run more than once (for example, a worker crashes after finishing but before acking), so handlers should be idempotent. |
 
 ## Quickstart
 
