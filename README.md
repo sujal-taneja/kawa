@@ -159,20 +159,17 @@ kawa.enqueue("emails", new PasswordReset("ada"), EnqueueOptions.builder()
         .idempotencyKey("reset-ada-42")
         .build());
 
-// worker
-kawa.take("emails", Duration.ofSeconds(30)).ifPresent(job -> {
-    try {
-        send(job.payload(WelcomeEmail.class));
-        kawa.ack(job);
-    } catch (LeaseLostException e) {
-        // the lease expired and another worker has the job now: drop it
-    } catch (Exception e) {
-        kawa.nack(job, Duration.ofSeconds(10));
-    }
-});
+// worker: your code runs for every job; return = ack, throw = nack (retry later, or DEAD)
+KawaWorker worker = KawaWorker.builder(kawa, "emails")
+        .onJob(WelcomeEmail.class, email -> mailer.send(email))
+        .build();
+worker.start();
+Runtime.getRuntime().addShutdownHook(new Thread(worker::stop));   // Ctrl+C finishes the current job first
 ```
 
-The lease token stays inside the `LeasedJob`, so workers never handle it. Errors arrive as typed, unchecked exceptions carrying the server's explanation: `LeaseLostException` (409), `JobNotFoundException` (404), `IdempotencyKeyReusedException` (422), `KawaRequestException` (other 4xx/5xx) and `KawaConnectionException` (network failures).
+`KawaWorker` runs one job at a time on a background thread. It waits when the queue is empty, keeps going when the server is briefly unreachable or a lease is lost, and `stop()` lets the running job finish and settle before returning. Use `onJob(job -> ...)` instead to get the whole `LeasedJob` (id, attempt number, `isLastAttempt()`). Delivery is at-least-once, so handlers should be safe to run twice, and there is no automatic lease renewal: choose a `lease(...)` longer than your slowest job, or call `kawa.extend(job, ...)`.
+
+For full control, use the client directly: `take`, then `ack`, `nack` or `extend` the `LeasedJob`. The lease token stays inside it, so workers never handle tokens. Errors arrive as typed, unchecked exceptions carrying the server's explanation: `LeaseLostException` (409), `JobNotFoundException` (404), `IdempotencyKeyReusedException` (422), `KawaRequestException` (other 4xx/5xx) and `KawaConnectionException` (network failures).
 
 ## Crash-recovery demo
 

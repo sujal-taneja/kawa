@@ -31,6 +31,7 @@ final class FakeKawaServer implements AutoCloseable {
     private final HttpServer server;
     private final List<Scripted> responses = new ArrayList<>();
     private final List<Recorded> requests = new ArrayList<>();
+    private Scripted whenUnscripted = new Scripted(500, "text/plain", "no response scripted");
 
     FakeKawaServer() throws IOException {
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
@@ -40,7 +41,7 @@ final class FakeKawaServer implements AutoCloseable {
             synchronized (this) {
                 requests.add(new Recorded(exchange.getRequestMethod(), exchange.getRequestURI().getRawPath(),
                         exchange.getRequestURI().getRawQuery(), Map.copyOf(exchange.getRequestHeaders()), body));
-                reply = responses.isEmpty() ? new Scripted(500, "text/plain", "no response scripted") : responses.remove(0);
+                reply = responses.isEmpty() ? whenUnscripted : responses.remove(0);
             }
             if (reply.contentType() != null) {
                 exchange.getResponseHeaders().add("Content-Type", reply.contentType());
@@ -80,8 +81,18 @@ final class FakeKawaServer implements AutoCloseable {
         return this;
     }
 
+    /** Once the script runs out, answer like an empty queue (for workers, which poll forever). */
+    synchronized FakeKawaServer thenEmptyQueue() {
+        whenUnscripted = new Scripted(204, null, "");
+        return this;
+    }
+
     synchronized Recorded lastRequest() {
         return requests.get(requests.size() - 1);
+    }
+
+    synchronized List<Recorded> requests() {
+        return List.copyOf(requests);
     }
 
     @Override
