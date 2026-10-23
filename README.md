@@ -1,5 +1,7 @@
 # Kawa
 
+[![CI](https://github.com/sujal-taneja/kawa/actions/workflows/ci.yml/badge.svg)](https://github.com/sujal-taneja/kawa/actions/workflows/ci.yml)
+
 **Kawa** (川, "river") is a durable job queue service built on PostgreSQL.
 
 Applications hand Kawa slow or unreliable work as *jobs*: send an email, resize an image, call a flaky API. Separate worker processes claim jobs over HTTP with a time-limited lease, run them, and acknowledge the result. If a worker crashes, its lease expires and the job is retried automatically. If a job keeps failing, it is parked as dead for inspection.
