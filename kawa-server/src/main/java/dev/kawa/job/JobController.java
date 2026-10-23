@@ -1,6 +1,9 @@
 package dev.kawa.job;
 
 import com.fasterxml.jackson.annotation.JsonRawValue;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import tools.jackson.databind.JsonNode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +22,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
+@Tag(name = "Jobs", description = "Enqueue, claim and settle jobs")
 public class JobController {
 
     private final JobService service;
@@ -27,9 +31,13 @@ public class JobController {
         this.service = service;
     }
 
+    @Operation(summary = "Enqueue a job", description = "201 with the new job's id. With an Idempotency-Key that "
+            + "was already used with the same payload: 200 and the original id (header Idempotent-Replayed: true); "
+            + "with a different payload: 422.")
     @PostMapping("/queues/{queue}/jobs")
     public ResponseEntity<EnqueueResponse> enqueue(
             @PathVariable String queue,
+            @Parameter(description = "Makes the request safe to retry: 1-128 characters, unique per queue")
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             @RequestBody EnqueueRequest request) {
         if (request.payload() == null || request.payload().isNull()) {
@@ -44,32 +52,40 @@ public class JobController {
         return ResponseEntity.ok().header("Idempotent-Replayed", "true").body(body);
     }
 
+    @Operation(summary = "Claim the next ready job", description = "Leases the highest-priority, oldest ready job. "
+            + "200 with the job and its leaseToken, or 204 when nothing is ready.")
     @PostMapping("/queues/{queue}/take")
     public ResponseEntity<JobResponse> take(@PathVariable String queue,
+                                            @Parameter(description = "Lease length, default 30")
                                             @RequestParam(required = false) Integer leaseSeconds) {
         return service.take(queue, leaseSeconds)
                 .map(job -> ResponseEntity.ok(JobResponse.from(job)))
                 .orElse(ResponseEntity.noContent().build());
     }
 
+    @Operation(summary = "Extend a lease", description = "Keeps the job for `seconds` more. 409 if the lease is no longer held.")
     @PostMapping("/jobs/{id}/extend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void extend(@PathVariable UUID id, @RequestBody LeaseRequest request) {
         service.extend(id, request.leaseToken(), request.seconds());
     }
 
+    @Operation(summary = "Acknowledge success", description = "Marks the job DONE. 409 if the lease is no longer held.")
     @PostMapping("/jobs/{id}/ack")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void ack(@PathVariable UUID id, @RequestBody LeaseRequest request) {
         service.ack(id, request.leaseToken());
     }
 
+    @Operation(summary = "Report a failure", description = "Retries the job after `seconds` (default 10), or marks it DEAD "
+            + "when it has no attempts left. 409 if the lease is no longer held.")
     @PostMapping("/jobs/{id}/nack")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void nack(@PathVariable UUID id, @RequestBody LeaseRequest request) {
         service.nack(id, request.leaseToken(), request.seconds());
     }
 
+    @Operation(summary = "Get a job", description = "The job's current state. 404 if there is no such job.")
     @GetMapping("/jobs/{id}")
     public JobResponse get(@PathVariable UUID id) {
         return JobResponse.from(service.get(id));

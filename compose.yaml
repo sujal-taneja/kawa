@@ -1,5 +1,5 @@
 # docker compose up -d            Kawa + PostgreSQL, Kawa on http://localhost:8080
-# docker compose up -d postgres   only the database, for running Kawa from source (./mvnw -pl kawa-server spring-boot:run)
+# docker compose up -d postgres   only the database, for running Kawa from source (see the README)
 services:
   kawa:
     build:

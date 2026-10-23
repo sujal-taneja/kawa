@@ -71,7 +71,7 @@ docker compose up -d     # builds Kawa, starts it with PostgreSQL 16; Kawa on lo
 
 The schema is created on startup. Use `KAWA_PORT=9090 docker compose up -d` if port 8080 is taken.
 
-To run Kawa from source instead (needs Java 21): `docker compose up -d postgres`, then `./mvnw -pl kawa-server spring-boot:run`.
+To run Kawa from source instead (needs Java 21): `docker compose up -d postgres`, then `./mvnw -pl kawa-server -am package -DskipTests && java -jar kawa-server/target/kawa-server-*.jar`.
 
 Enqueue a job, claim it, and acknowledge it:
 
@@ -91,7 +91,7 @@ curl -X POST localhost:8080/api/v1/jobs/5f0c…/ack \
 
 ## API
 
-All endpoints live under `/api/v1` and speak JSON.
+All endpoints live under `/api/v1` and speak JSON. With Kawa running, **http://localhost:8080/swagger-ui/index.html** lists every endpoint and lets you try them from the browser; the OpenAPI spec itself is at `/v3/api-docs`.
 
 | Method | Path | Body | Responses |
 |---|---|---|---|
