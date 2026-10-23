@@ -27,7 +27,7 @@ Hand slow work to Kawa, run it in workers written in any language, and never los
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
-    <img src="docs/images/architecture-light.svg" alt="Producers enqueue jobs into Kawa; workers take, ack and nack jobs over HTTP; Kawa stores every job in a PostgreSQL table" width="100%">
+    <img src="docs/images/architecture-light.svg" alt="Your app enqueues jobs into Kawa; workers take, ack and nack jobs over HTTP; Kawa stores every job in a PostgreSQL table" width="100%">
   </picture>
 </p>
 
@@ -40,22 +40,31 @@ git clone https://github.com/sujal-taneja/kawa.git && cd kawa
 docker compose up -d        # Kawa + PostgreSQL; Kawa on http://localhost:8080
 ```
 
-Open **http://localhost:8080/swagger-ui/index.html** to try every endpoint from your browser, or use `curl`:
+Then open **http://localhost:8080/swagger-ui/index.html** to try every endpoint from your browser, or drive a job through its whole life with `curl`: add it, take it, and report it done.
+
+<p align="center">
+  <img src="docs/images/quickstart.gif" alt="Terminal: docker compose up starts Kawa; curl adds a job and gets its id; a take returns the job as LEASED with a lease token; an ack with that token returns 204; the job's status is now DONE" width="100%">
+</p>
+
+<details>
+<summary><b>The commands</b></summary>
 
 ```bash
-# add a job
+# 1. your app adds a job
 curl -X POST localhost:8080/api/v1/queues/emails/jobs \
   -H 'Content-Type: application/json' -d '{"payload": {"to": "ada@example.com"}}'
 
-# take the next job: it comes back with a leaseToken
+# 2. a worker takes it: the job comes back with a leaseToken
 curl -X POST localhost:8080/api/v1/queues/emails/take
 
-# report that it's done
+# 3. the worker reports success with that token
 curl -X POST localhost:8080/api/v1/jobs/<id>/ack \
   -H 'Content-Type: application/json' -d '{"leaseToken": "<leaseToken>"}'
 ```
 
-If port 8080 is taken, start it with `KAWA_PORT=9090 docker compose up -d`.
+If port 8080 is taken, start Kawa with `KAWA_PORT=9090 docker compose up -d`.
+
+</details>
 
 ## Features
 
@@ -77,37 +86,83 @@ If port 8080 is taken, start it with `KAWA_PORT=9090 docker compose up -d`.
 
 ## Java client
 
-The client covers both halves, which usually live in two different programs.
+One library covers both halves of the system, which usually run as separate programs:
 
-**In your app, add jobs.** The payload is any object Jackson can turn into JSON; options are optional.
+<table>
+<tr>
+<th width="50%">In your app: add jobs</th>
+<th width="50%">In a worker: run them</th>
+</tr>
+<tr>
+<td valign="top">
 
 ```java
-KawaClient kawa = KawaClient.create("http://localhost:8080");
+var kawa = KawaClient.create(
+    "http://localhost:8080");
 
-kawa.enqueue("thumbnails", new Thumbnail("beach.jpg", 200));
+kawa.enqueue("thumbnails",
+    new Thumbnail("beach.jpg", 200));
 
-kawa.enqueue("thumbnails", new Thumbnail("profile-photo.jpg", 64), EnqueueOptions.builder()
-        .priority(9)                          // jump the queue
-        .delay(Duration.ofMinutes(5))         // or run later
-        .idempotencyKey("avatar-ada")         // safe to retry
+kawa.enqueue("thumbnails",
+    new Thumbnail("avatar.jpg", 64),
+    EnqueueOptions.builder()
+        .priority(9)          // jump the queue
+        .delay(Duration.ofMinutes(5))
+        .idempotencyKey("avatar-42")
         .build());
 ```
 
-**In a worker, do them.** Your code runs for every job: returning marks the job done, and throwing retries it later.
+</td>
+<td valign="top">
 
 ```java
-KawaWorker worker = KawaWorker.builder(kawa, "thumbnails")
-        .onJob(Thumbnail.class, t -> resize(t.image(), t.width()))
-        .build();
+var kawa = KawaClient.create(
+    "http://localhost:8080");
+
+var worker = KawaWorker
+    .builder(kawa, "thumbnails")
+    .onJob(Thumbnail.class,
+        t -> resize(t.image(), t.width()))
+    .build();
+
 worker.start();
-Runtime.getRuntime().addShutdownHook(new Thread(worker::stop));   // Ctrl+C finishes the current job first
+
+// Ctrl+C finishes the current job, then stops
+Runtime.getRuntime()
+    .addShutdownHook(new Thread(worker::stop));
 ```
 
-Start as many workers as you like; they share the queue and never get the same job. The client needs Java 17+, no Spring, and has Jackson as its only dependency.
+</td>
+</tr>
+<tr>
+<td valign="top">
 
-To see it all in action, [`examples/java-quickstart`](examples/java-quickstart) runs a producer and two workers against your local Kawa, covering priorities, delays, retries and idempotency. The [Java client guide](docs/java-client.md) covers installation, every option, and error handling.
+`enqueue` returns as soon as the job is safely stored. The payload is any object Jackson can turn into JSON, such as a record. Options are optional: priority, a delay or exact run time, and an idempotency key that makes retries safe.
+
+</td>
+<td valign="top">
+
+Your code runs once per job: **return** and the job is done, **throw** and it's retried later. Start as many workers as you like; they never get the same job.
+
+</td>
+</tr>
+</table>
+
+Here is the [Java quickstart](examples/java-quickstart) running for real: one producer and two workers. Worker A is killed with `kill -9` in the middle of `city.jpg`, and worker B finishes that job as attempt 2. Along the way, the priority-9 job jumps the queue, the delayed job waits its turn, and a corrupted image is retried once before it's marked `DEAD`.
+
+<p align="center">
+  <img src="docs/images/java-client.gif" alt="Three panes: the producer enqueues eight jobs; worker A and worker B process them side by side; worker A is killed while resizing city.jpg; worker B later finishes city.jpg as attempt 2, while a priority-9 job runs first and a failing job ends DEAD" width="100%">
+</p>
+
+Java 17+, no Spring, and Jackson is its only dependency. The [Java client guide](docs/java-client.md) covers installation, every option and error handling.
 
 ## How it works
+
+Every job is a row in one PostgreSQL table, and every change to a job is a single SQL statement. Five ideas carry the whole design.
+
+### 1. A job's life
+
+A job waits as `PENDING` (possibly scheduled for later), is `LEASED` to one worker at a time, and ends `DONE`, or `DEAD` once it runs out of attempts.
 
 <p align="center">
   <picture>
@@ -116,9 +171,9 @@ To see it all in action, [`examples/java-quickstart`](examples/java-quickstart) 
   </picture>
 </p>
 
-Every job is a row in one PostgreSQL table, and every change to a job is a single SQL statement.
+### 2. Claiming without collisions
 
-**Claiming without collisions.** `take` locks the best ready job with `FOR UPDATE SKIP LOCKED`. Workers asking at the same moment each get a different job, and none of them waits for another.
+`take` locks the best ready job with `FOR UPDATE SKIP LOCKED`. Workers asking at the same moment each get a different job, and none of them waits for another.
 
 <p align="center">
   <picture>
@@ -127,7 +182,9 @@ Every job is a row in one PostgreSQL table, and every change to a job is a singl
   </picture>
 </p>
 
-**Fencing off stale workers.** Every claim gets a fresh random lease token, and only the current token can settle the job. A worker that froze past its lease gets `409 Conflict` instead of overwriting the work of whoever holds the job now.
+### 3. Fencing off stale workers
+
+Every claim gets a fresh random lease token, and only the current token can settle the job. A worker that froze past its lease gets `409 Conflict` instead of overwriting the work of whoever holds the job now.
 
 <p align="center">
   <picture>
@@ -136,17 +193,33 @@ Every job is a row in one PostgreSQL table, and every change to a job is a singl
   </picture>
 </p>
 
-**Recovering from crashes.** A reaper puts jobs from crashed workers back on the queue, and marks a job `DEAD` once it is out of attempts.
+### 4. Safe retries
 
-Delivery is **at-least-once**: a worker that finishes the work but crashes before reporting it causes a second run, so job handlers should be safe to repeat. The [architecture guide](docs/architecture.md) goes deeper.
-
-### Crash recovery, live
-
-Two workers share a queue. Worker A is killed with `kill -9` in the middle of a job; its lease runs out, the reaper returns the job, and worker B finishes it as attempt 2.
+A producer whose request timed out can't tell whether the job was created. With an `Idempotency-Key`, it can simply retry: a unique index lets only the first request create the job, and every retry gets the same job back.
 
 <p align="center">
-  <img src="docs/images/demo.gif" alt="Two workers poll a queue; worker A is killed with kill -9 mid-job; the reaper returns its job to the queue and worker B finishes it as attempt 2" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/idempotency-dark.svg">
+    <img src="docs/images/idempotency-light.svg" alt="The same request with one Idempotency-Key is sent three times; the first creates the job, the retries create nothing and return the same job id" width="100%">
+  </picture>
 </p>
+
+### 5. Recovering from crashes
+
+A reaper runs every few seconds. It puts jobs whose lease ran out back on the queue, which is how worker B got `city.jpg` in the demo above, and it marks a job `DEAD` once it is out of attempts.
+
+### Guarantees
+
+| | |
+|---|---|
+| **No lost jobs** | A job is acknowledged only after it is committed to PostgreSQL. |
+| **One holder at a time** | At most one worker holds a valid lease on a job. |
+| **No stuck jobs** | Every lease expires, and expired jobs return to the queue. |
+| **Bounded retries** | A job runs at most `maxAttempts` times, crashes included. |
+| **Exactly-once enqueue** | With an `Idempotency-Key`, retries never create a second job. |
+| **At-least-once delivery** | A worker that crashes after the work but before reporting it causes a second run, so job handlers should be safe to repeat. |
+
+The [architecture guide](docs/architecture.md) goes deeper, with the SQL behind each step.
 
 ## Documentation
 
