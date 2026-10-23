@@ -20,11 +20,6 @@ Lease-based at-least-once delivery, automatic crash recovery, and nothing to run
 **Kawa** (川, "river") takes slow or unreliable work off your request path. Your services enqueue *jobs* (send an email, resize an image, call a flaky API), and separate worker processes claim them over HTTP, run them, and report back. If a worker crashes mid-job, the job comes back on its own. If a job keeps failing, it is parked for inspection instead of retrying forever.
 
 <p align="center">
-  <img src="docs/images/demo.gif" alt="Two workers poll a queue; worker A is killed with kill -9 mid-job; the reaper returns its job to the queue and worker B finishes it as attempt 2" width="100%">
-  <br><sub>A worker is killed mid-job with <code>kill -9</code>. Its lease expires, and another worker finishes the job.</sub>
-</p>
-
-<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-dark.svg">
     <img src="docs/images/architecture-light.svg" alt="Producers enqueue jobs into Kawa; workers take, ack and nack jobs over HTTP; Kawa stores every job in a PostgreSQL table and claims them with FOR UPDATE SKIP LOCKED" width="100%">
@@ -141,7 +136,11 @@ for n in 1 2 3; do
 done
 ```
 
-Kill worker A with `kill -9` while it is mid-job. It never acks, its lease runs out, the reaper puts the job back, and worker B finishes it as attempt 2. The recording at the top of this page shows this scenario.
+Kill worker A with `kill -9` while it is mid-job. It never acks, its lease runs out, the reaper puts the job back, and worker B finishes it as attempt 2:
+
+<p align="center">
+  <img src="docs/images/demo.gif" alt="Two workers poll a queue; worker A is killed with kill -9 mid-job; the reaper returns its job to the queue and worker B finishes it as attempt 2" width="100%">
+</p>
 
 ## Testing
 
