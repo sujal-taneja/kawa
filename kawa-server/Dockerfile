@@ -2,7 +2,9 @@
 #   docker build -f kawa-server/Dockerfile -t kawa .
 
 # --- stage 1: build the jar with the full JDK and the Maven wrapper ---
-FROM eclipse-temurin:21-jdk AS build
+# a jar runs on any CPU, so this stage always runs natively on the build machine, even when the
+# image is built for several platforms; only the small runtime stage below is per platform
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 
 # poms first: dependency downloads are cached as a layer and only rerun when a pom changes

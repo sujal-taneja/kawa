@@ -73,6 +73,13 @@ echo "docker.host=unix://$HOME/.colima/default/docker.sock" >> ~/.testcontainers
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock   # add this to your shell profile
 ```
 
+## Releasing
+
+1. Set the version in every pom (for example `0.3.0`) and add its section to [`CHANGELOG.md`](../CHANGELOG.md).
+2. Commit, then tag and push: `git tag -a v0.3.0 -m "Kawa v0.3.0" && git push origin v0.3.0`.
+
+The release workflow then checks that the tag matches the pom version and runs the tests. It publishes the image to `ghcr.io/sujal-taneja/kawa` as `0.3.0`, `0.3` and `latest`, for `linux/amd64` and `linux/arm64`. Finally it creates the GitHub release, with that version's changelog section as notes and the server and client jars attached.
+
 ## Continuous integration
 
 GitHub Actions runs `./mvnw -B verify` on every push to `main` and on every pull request, with read-only permissions and a 15-minute timeout. Dependabot opens weekly update pull requests for Maven dependencies and GitHub Actions.

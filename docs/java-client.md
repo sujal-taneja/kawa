@@ -20,7 +20,7 @@ Then depend on it:
 <dependency>
   <groupId>dev.kawa</groupId>
   <artifactId>kawa-client</artifactId>
-  <version>0.2.0-SNAPSHOT</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
