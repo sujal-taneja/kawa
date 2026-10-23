@@ -6,6 +6,7 @@ import java.util.UUID;
 public record Job(
         UUID id,
         String queue,
+        String idempotencyKey,
         String payload,
         JobStatus status,
         int attempts,

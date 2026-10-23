@@ -12,6 +12,7 @@ public class JobService {
     static final int DEFAULT_MAX_ATTEMPTS = 5;
     static final Duration DEFAULT_LEASE = Duration.ofSeconds(30);
     static final Duration DEFAULT_RETRY_DELAY = Duration.ofSeconds(10);
+    static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
 
     private final JobRepository repository;
 
@@ -19,12 +20,21 @@ public class JobService {
         this.repository = repository;
     }
 
-    public UUID enqueue(String queue, String payloadJson, Integer maxAttempts) {
+    public EnqueueResult enqueue(String queue, String payloadJson, Integer maxAttempts, String idempotencyKey) {
         int attempts = maxAttempts == null ? DEFAULT_MAX_ATTEMPTS : maxAttempts;
         if (attempts < 1) {
             throw new InvalidJobRequestException("maxAttempts must be at least 1 (got " + attempts + ").");
         }
-        return repository.enqueue(queue, payloadJson, attempts);
+        if (idempotencyKey != null && (idempotencyKey.isBlank() || idempotencyKey.length() > MAX_IDEMPOTENCY_KEY_LENGTH)) {
+            throw new InvalidJobRequestException(
+                    "Idempotency-Key must be 1 to " + MAX_IDEMPOTENCY_KEY_LENGTH + " non-blank characters.");
+        }
+        EnqueueResult result = repository.enqueue(queue, payloadJson, attempts, idempotencyKey);
+        // silently returning the old job here would hide a client bug: one key reused for two different jobs
+        if (!result.payloadMatches()) {
+            throw new IdempotencyKeyReusedException(idempotencyKey, result.jobId());
+        }
+        return result;
     }
 
     public Optional<Job> take(String queue, Integer leaseSeconds) {

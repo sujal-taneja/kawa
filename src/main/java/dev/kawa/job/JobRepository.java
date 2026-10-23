@@ -6,7 +6,6 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,15 +19,42 @@ public class JobRepository {
     }
 
     public UUID enqueue(String queue, String payloadJson, int maxAttempts) {
-        return jdbcClient.sql("""
-                        INSERT INTO jobs (queue, payload, max_attempts)
-                        VALUES (:queue, CAST(:payload AS jsonb), :maxAttempts)
+        return enqueue(queue, payloadJson, maxAttempts, null).jobId();
+    }
+
+    /**
+     * Check-then-insert would race (two retries both see "not found"), so the unique index decides:
+     * the loser's INSERT does nothing and returns no row, and we look up the winner instead.
+     * The hash is taken from the jsonb form, so key order and whitespace don't matter.
+     */
+    public EnqueueResult enqueue(String queue, String payloadJson, int maxAttempts, String idempotencyKey) {
+        Optional<UUID> inserted = jdbcClient.sql("""
+                        INSERT INTO jobs (queue, payload, max_attempts, idempotency_key, payload_hash)
+                        VALUES (:queue, CAST(:payload AS jsonb), :maxAttempts, :key,
+                                sha256(convert_to(CAST(CAST(:payload AS jsonb) AS text), 'UTF8')))
+                        ON CONFLICT (queue, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
                         RETURNING id
                         """)
                 .param("queue", queue)
                 .param("payload", payloadJson)
                 .param("maxAttempts", maxAttempts)
+                .param("key", idempotencyKey)
                 .query((rs, rowNum) -> (UUID) rs.getObject("id"))
+                .optional();
+        if (inserted.isPresent()) {
+            return new EnqueueResult(inserted.get(), true, true);
+        }
+        return jdbcClient.sql("""
+                        SELECT id,
+                               payload_hash = sha256(convert_to(CAST(CAST(:payload AS jsonb) AS text), 'UTF8'))
+                                   AS same_payload
+                        FROM jobs
+                        WHERE queue = :queue AND idempotency_key = :key
+                        """)
+                .param("queue", queue)
+                .param("payload", payloadJson)
+                .param("key", idempotencyKey)
+                .query((rs, rowNum) -> new EnqueueResult((UUID) rs.getObject("id"), false, rs.getBoolean("same_payload")))
                 .single();
     }
 
@@ -136,6 +162,7 @@ public class JobRepository {
         return new Job(
                 (UUID) rs.getObject("id"),
                 rs.getString("queue"),
+                rs.getString("idempotency_key"),
                 rs.getString("payload"),
                 JobStatus.valueOf(rs.getString("status")),
                 rs.getInt("attempts"),

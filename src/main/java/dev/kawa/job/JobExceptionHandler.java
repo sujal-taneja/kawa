@@ -22,6 +22,13 @@ public class JobExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(IdempotencyKeyReusedException.class)
+    ProblemDetail idempotencyKeyReused(IdempotencyKeyReusedException ex) {
+        ProblemDetail problem = problem(HttpStatus.UNPROCESSABLE_CONTENT, "Idempotency key reused", ex);
+        problem.setProperty("jobId", ex.existingJobId());
+        return problem;
+    }
+
     @ExceptionHandler(InvalidJobRequestException.class)
     ProblemDetail invalidRequest(InvalidJobRequestException ex) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", ex);

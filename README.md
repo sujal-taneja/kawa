@@ -92,7 +92,7 @@ All endpoints live under `/api/v1` and speak JSON.
 
 | Method | Path | Body | Responses |
 |---|---|---|---|
-| `POST` | `/queues/{queue}/jobs` | `{"payload": {…}, "maxAttempts": 5}` | `201` with `{"id"}` |
+| `POST` | `/queues/{queue}/jobs` | `{"payload": {…}, "maxAttempts": 5}` | `201` with `{"id"}` · `200` on an idempotent replay · `422` |
 | `POST` | `/queues/{queue}/take?leaseSeconds=30` | – | `200` with the job · `204` if nothing is ready |
 | `POST` | `/jobs/{id}/extend` | `{"leaseToken", "seconds": 30}` | `204` · `409` if the lease is not held |
 | `POST` | `/jobs/{id}/ack` | `{"leaseToken"}` | `204` · `409` |
@@ -100,6 +100,16 @@ All endpoints live under `/api/v1` and speak JSON.
 | `GET` | `/jobs/{id}` | – | `200` with the job · `404` |
 
 Defaults: `maxAttempts` 5, lease 30 s, retry delay 10 s. A queue exists as soon as a job is enqueued to it.
+
+**Idempotent enqueue.** Send an `Idempotency-Key` header (1–128 characters) to make an enqueue safe to retry. The first request creates the job (`201`). Repeating it with the same key and payload creates nothing and returns the same job id with `200` and `Idempotent-Replayed: true`, even when the retries race each other. Reusing a key with a different payload is rejected with `422`. Keys are scoped per queue, and payloads are compared as JSON, so key order and whitespace don't matter.
+
+```bash
+curl -X POST localhost:8080/api/v1/queues/emails/jobs \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: order-1042-receipt' \
+  -d '{"payload": {"to": "ada@example.com"}}'
+```
+
+**Errors** use [RFC 9457 problem details](https://www.rfc-editor.org/rfc/rfc9457) (`application/problem+json`) with a `status`, a short `title`, a specific `detail`, and the `jobId` where relevant.
 
 <details>
 <summary><b>Example job</b></summary>

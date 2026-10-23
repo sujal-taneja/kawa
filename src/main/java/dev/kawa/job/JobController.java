@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -27,12 +28,19 @@ public class JobController {
     }
 
     @PostMapping("/queues/{queue}/jobs")
-    @ResponseStatus(HttpStatus.CREATED)
-    public EnqueueResponse enqueue(@PathVariable String queue, @RequestBody EnqueueRequest request) {
+    public ResponseEntity<EnqueueResponse> enqueue(
+            @PathVariable String queue,
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestBody EnqueueRequest request) {
         if (request.payload() == null || request.payload().isNull()) {
             throw new InvalidJobRequestException("payload is required and must be a JSON value.");
         }
-        return new EnqueueResponse(service.enqueue(queue, request.payload().toString(), request.maxAttempts()));
+        EnqueueResult result = service.enqueue(queue, request.payload().toString(), request.maxAttempts(), idempotencyKey);
+        EnqueueResponse body = new EnqueueResponse(result.jobId());
+        if (result.created()) {
+            return ResponseEntity.status(HttpStatus.CREATED).body(body);
+        }
+        return ResponseEntity.ok().header("Idempotent-Replayed", "true").body(body);
     }
 
     @PostMapping("/queues/{queue}/take")
@@ -79,6 +87,7 @@ public class JobController {
     public record JobResponse(
             UUID id,
             String queue,
+            String idempotencyKey,
             @JsonRawValue String payload,
             JobStatus status,
             int attempts,
@@ -90,7 +99,7 @@ public class JobController {
             Instant updatedAt
     ) {
         static JobResponse from(Job job) {
-            return new JobResponse(job.id(), job.queue(), job.payload(), job.status(), job.attempts(),
+            return new JobResponse(job.id(), job.queue(), job.idempotencyKey(), job.payload(), job.status(), job.attempts(),
                     job.maxAttempts(), job.availableAt(), job.leaseToken(), job.leaseExpiresAt(),
                     job.createdAt(), job.updatedAt());
         }
