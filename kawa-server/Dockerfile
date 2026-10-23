@@ -10,6 +10,8 @@ COPY mvnw pom.xml ./
 COPY .mvn .mvn
 COPY kawa-client/pom.xml kawa-client/
 COPY kawa-server/pom.xml kawa-server/
+# the parent lists the example as a module, so Maven needs its pom even though the image doesn't build it
+COPY examples/java-quickstart/pom.xml examples/java-quickstart/
 RUN ./mvnw -B -q -pl kawa-server -am dependency:go-offline -DexcludeArtifactIds=kawa-client
 
 COPY kawa-client/src kawa-client/src

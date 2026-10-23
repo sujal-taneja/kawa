@@ -7,7 +7,9 @@ kawa/
 ├── pom.xml          parent pom: shared settings and the module list
 ├── kawa-server/     the service: HTTP API, claim and lease logic, reaper, migrations
 ├── kawa-client/     the Java client library and KawaWorker
-├── examples/        DemoWorker.java, a dependency-free worker
+├── examples/
+│   ├── java-quickstart/   a producer and a worker using the Java client (built by CI)
+│   └── DemoWorker.java    a dependency-free worker that Java runs straight from source
 ├── docs/            these documents
 └── compose.yaml     Kawa + PostgreSQL
 ```

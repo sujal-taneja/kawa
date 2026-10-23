@@ -4,5 +4,6 @@
 .idea
 .vscode
 docs
-examples
+examples/*.java
+examples/*/src
 *.md

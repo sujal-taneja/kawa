@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.kawa</groupId>
+    <artifactId>kawa-parent</artifactId>
+    <version>0.2.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>kawa-example-quickstart</artifactId>
+  <name>kawa-example-quickstart</name>
+  <description>A producer and a worker built with the Kawa Java client</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <exec-maven-plugin.version>3.6.4</exec-maven-plugin.version>
+    <!-- an example to read and run, not a library to publish -->
+    <maven.install.skip>true</maven.install.skip>
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.kawa</groupId>
+      <artifactId>kawa-client</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>${exec-maven-plugin.version}</version>
+        <executions>
+          <!-- ../../mvnw -q exec:java@producer   and   ../../mvnw -q exec:java@worker -Dexec.args=worker-A -->
+          <execution>
+            <id>producer</id>
+            <configuration>
+              <mainClass>dev.kawa.examples.Producer</mainClass>
+            </configuration>
+          </execution>
+          <execution>
+            <id>worker</id>
+            <configuration>
+              <mainClass>dev.kawa.examples.Worker</mainClass>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

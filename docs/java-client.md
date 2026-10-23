@@ -2,6 +2,8 @@
 
 [`kawa-client`](../kawa-client) wraps the HTTP API in a small library: Java 17+, no Spring, and Jackson as its only dependency.
 
+For a runnable starting point, see [`examples/java-quickstart`](../examples/java-quickstart): a producer and a worker you can run against a local Kawa in a few commands.
+
 ## Installing
 
 The client isn't published yet. Install it into your local Maven repository from a clone of this repository:

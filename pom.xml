@@ -25,5 +25,6 @@
   <modules>
     <module>kawa-client</module>
     <module>kawa-server</module>
+    <module>examples/java-quickstart</module>
   </modules>
 </project>

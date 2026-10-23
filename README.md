@@ -77,21 +77,35 @@ If port 8080 is taken, start it with `KAWA_PORT=9090 docker compose up -d`.
 
 ## Java client
 
+The client covers both halves, which usually live in two different programs.
+
+**In your app, add jobs.** The payload is any object Jackson can turn into JSON; options are optional.
+
 ```java
 KawaClient kawa = KawaClient.create("http://localhost:8080");
 
-// in your app: add a job and move on
-kawa.enqueue("emails", new WelcomeEmail("ada@example.com"),
-        EnqueueOptions.builder().priority(9).idempotencyKey("welcome-ada").build());
+kawa.enqueue("thumbnails", new Thumbnail("beach.jpg", 200));
 
-// in a worker: your code runs for every job; returning acks it, throwing retries it
-KawaWorker worker = KawaWorker.builder(kawa, "emails")
-        .onJob(WelcomeEmail.class, email -> mailer.send(email))
-        .build();
-worker.start();
+kawa.enqueue("thumbnails", new Thumbnail("profile-photo.jpg", 64), EnqueueOptions.builder()
+        .priority(9)                          // jump the queue
+        .delay(Duration.ofMinutes(5))         // or run later
+        .idempotencyKey("avatar-ada")         // safe to retry
+        .build());
 ```
 
-Java 17+, no Spring, and Jackson is its only dependency. The [Java client guide](docs/java-client.md) covers installation, options and error handling.
+**In a worker, do them.** Your code runs for every job: returning marks the job done, and throwing retries it later.
+
+```java
+KawaWorker worker = KawaWorker.builder(kawa, "thumbnails")
+        .onJob(Thumbnail.class, t -> resize(t.image(), t.width()))
+        .build();
+worker.start();
+Runtime.getRuntime().addShutdownHook(new Thread(worker::stop));   // Ctrl+C finishes the current job first
+```
+
+Start as many workers as you like; they share the queue and never get the same job. The client needs Java 17+, no Spring, and has Jackson as its only dependency.
+
+To see it all in action, [`examples/java-quickstart`](examples/java-quickstart) runs a producer and two workers against your local Kawa, covering priorities, delays, retries and idempotency. The [Java client guide](docs/java-client.md) covers installation, every option, and error handling.
 
 ## How it works
 
